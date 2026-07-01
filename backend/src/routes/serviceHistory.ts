@@ -5,6 +5,13 @@ import { AuthenticatedRequest, CreateServiceHistoryRequest } from '../types';
 
 const router = Router();
 
+const getServiceNotesColumnName = async (connection: any): Promise<string | null> => {
+  const [columns] = await connection.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_history' AND column_name IN ('serviceNotes','service_notes') ORDER BY FIELD(column_name, 'serviceNotes', 'service_notes') LIMIT 1"
+  );
+  return (columns as any[]).length > 0 ? (columns as any[])[0].column_name : null;
+};
+
 // Get service history records
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
@@ -14,26 +21,35 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
     }
 
     const connection = await pool.getConnection();
+    const serviceNotesColumn = await getServiceNotesColumnName(connection);
+    const serviceNotesSupported = Boolean(serviceNotesColumn);
+    const serviceNotesSelect = serviceNotesColumn ? `sh.\`${serviceNotesColumn}\` AS service_notes, ` : '';
     let query = `
-      SELECT sh.*, sq.queue_number, sq.user_id, u.name AS user_name, v.merk, v.tipe, v.tahun, v.plat_nomor
+      SELECT sh.id, sh.queueId AS queue_id, ${serviceNotesSelect}sh.completedAt AS completed_at, sh.createdAt AS created_at, sq.queueNumber AS queue_number, sq.userId AS user_id, sq.complaint AS complaint, u.name AS user_name, v.merk, v.tipe, v.tahun, v.platNomor AS plat_nomor
       FROM service_history sh
-      JOIN service_queues sq ON sh.queue_id = sq.id
-      LEFT JOIN users u ON sq.user_id = u.id
-      LEFT JOIN vehicles v ON sq.vehicle_id = v.id
+      JOIN service_queues sq ON sh.queueId = sq.id
+      LEFT JOIN users u ON sq.userId = u.id
+      LEFT JOIN vehicles v ON sq.vehicleId = v.id
     `;
     const params: any[] = [];
 
     if (authReq.user.role !== 'admin') {
-      query += ' WHERE sq.user_id = ?';
+      query += ' WHERE sq.userId = ?';
       params.push(authReq.user.id);
     }
 
-    query += ' ORDER BY sh.completed_at DESC';
+    query += ' ORDER BY sh.completedAt DESC';
 
     const [history] = await connection.query(query, params);
     connection.release();
 
-    res.json({ success: true, message: 'Service history retrieved', code: 200, data: history });
+    res.json({
+      success: true,
+      message: 'Service history retrieved',
+      code: 200,
+      data: history,
+      meta: { service_notes_supported: serviceNotesSupported },
+    });
   } catch (error) {
     console.error('Get service history error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve service history', code: 500 });
@@ -51,7 +67,7 @@ router.get('/queue/:queueId', authMiddleware, async (req: Request, res: Response
     const queueId = parseInt(req.params.queueId, 10);
 
     const connection = await pool.getConnection();
-    const [queues] = await connection.query('SELECT user_id FROM service_queues WHERE id = ?', [queueId]);
+    const [queues] = await connection.query('SELECT userId AS user_id FROM service_queues WHERE id = ?', [queueId]);
 
     if ((queues as any[]).length === 0) {
       connection.release();
@@ -64,14 +80,23 @@ router.get('/queue/:queueId', authMiddleware, async (req: Request, res: Response
       return res.status(403).json({ success: false, message: 'Forbidden', code: 403 });
     }
 
+    const serviceNotesColumn = await getServiceNotesColumnName(connection);
+    const serviceNotesSupported = Boolean(serviceNotesColumn);
+    const serviceNotesSelect = serviceNotesColumn ? `, \`${serviceNotesColumn}\` AS service_notes` : '';
     const [history] = await connection.query(
-      'SELECT * FROM service_history WHERE queue_id = ? ORDER BY completed_at DESC',
+      `SELECT id, queueId AS queue_id${serviceNotesSelect}, completedAt AS completed_at, createdAt AS created_at FROM service_history WHERE queueId = ? ORDER BY completedAt DESC`,
       [queueId]
     );
 
     connection.release();
 
-    res.json({ success: true, message: 'Queue history retrieved', code: 200, data: history });
+    res.json({
+      success: true,
+      message: 'Queue history retrieved',
+      code: 200,
+      data: history,
+      meta: { service_notes_supported: serviceNotesSupported },
+    });
   } catch (error) {
     console.error('Get queue history error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve queue history', code: 500 });
@@ -97,15 +122,21 @@ router.post('/', authMiddleware, adminMiddleware, async (req: Request, res: Resp
     }
 
     const oldStatus = (queues as any[])[0].status;
-    await connection.query(
-      'INSERT INTO service_history (queue_id, service_notes, completed_at) VALUES (?, ?, NOW())',
-      [queue_id, service_notes || null]
-    );
+    const serviceNotesColumn = await getServiceNotesColumnName(connection);
+
+    if (serviceNotesColumn) {
+      await connection.query(
+        `INSERT INTO service_history (queueId, \`${serviceNotesColumn}\`, completedAt) VALUES (?, ?, NOW())`,
+        [queue_id, service_notes || null]
+      );
+    } else {
+      await connection.query('INSERT INTO service_history (queueId, completedAt) VALUES (?, NOW())', [queue_id]);
+    }
 
     if (oldStatus !== 'Selesai') {
       await connection.query('UPDATE service_queues SET status = ? WHERE id = ?', ['Selesai', queue_id]);
       await connection.query(
-        'INSERT INTO queue_logs (queue_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)',
+        'INSERT INTO queue_logs (queueId, oldStatus, newStatus, changedBy) VALUES (?, ?, ?, ?)',
         [queue_id, oldStatus, 'Selesai', authReq.user!.id]
       );
     }

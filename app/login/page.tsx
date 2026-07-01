@@ -1,16 +1,16 @@
 'use client';
 
-import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Eye, EyeOff, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { saveUserSession, getStoredSession } from '@/lib/auth';
 import { SessionUser } from '@/lib/types';
+import { Eye, EyeOff } from 'lucide-react';
+import { AuthBrand } from '@/components/auth-brand';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 
@@ -95,29 +95,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 transition-colors duration-300">
       <button
         onClick={toggleTheme}
-        className="absolute top-6 right-6 inline-flex h-8 w-14 items-center rounded-full bg-muted p-1 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="absolute top-6 right-6 rounded-full border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm"
       >
-        <span
-          className={`h-7 w-7 rounded-full bg-card shadow-sm transition-transform duration-300 flex items-center justify-center ${
-            isDark ? 'translate-x-6' : 'translate-x-0'
-          }`}
-        >
-          {isDark ? (
-            <Moon className="h-4 w-4 text-primary" />
-          ) : (
-            <Sun className="h-4 w-4 text-yellow-500" />
-          )}
-        </span>
+        {isDark ? 'Tema Gelap' : 'Tema Terang'}
       </button>
 
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-6 h-24 w-24 sm:h-32 sm:w-32 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 p-2 shadow-lg">
-            <Image src="/logo.png" alt="HASUNO WORKSHOP" width={128} height={128} className="object-contain" />
-          </div>
-          <h1 className="text-4xl font-bold text-foreground">HASUNO WORKSHOP</h1>
-          <p className="mt-1 text-lg text-muted-foreground">Smart Queue</p>
-        </div>
+        <AuthBrand />
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg transition-all duration-300">
           <h2 className="text-2xl font-bold text-foreground">Masuk</h2>
@@ -151,7 +135,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />

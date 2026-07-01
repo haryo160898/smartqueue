@@ -31,7 +31,6 @@ export default function AdminServiceHistoryPage() {
           const mapped = (res.data || []).map((h: any) => ({
             id: String(h.id),
             queue_id: String(h.queue_id),
-            service_notes: h.service_notes || '',
             completed_at: h.completed_at ? new Date(h.completed_at) : null,
             queue_number: h.queue_number || '',
             user_name: h.user_name || '',
@@ -96,9 +95,6 @@ export default function AdminServiceHistoryPage() {
                 <th className="px-4 py-3 text-left font-semibold text-foreground">
                   Tanggal Service
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-foreground">
-                  Catatan Service
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -124,13 +120,10 @@ export default function AdminServiceHistoryPage() {
                       {item.merk ? `${item.merk} ${item.tipe}` : 'Unknown'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
-                      {item.complaint}
+                      {item.complaint || '-'}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {item.completed_at ? new Date(item.completed_at).toLocaleDateString('id-ID') : '-'}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-green-600">
-                      {item.service_notes || '-'}
                     </td>
                   </tr>
                 ))

@@ -6,6 +6,14 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth';
 
 const router = Router();
 
+const ensureUserProfileColumns = async (connection: any) => {
+  await connection.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(50) NULL,
+      ADD COLUMN IF NOT EXISTS address VARCHAR(255) NULL
+  `);
+};
+
 // GET /api/admin/stats
 router.get('/stats', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
@@ -13,26 +21,26 @@ router.get('/stats', authMiddleware, adminMiddleware, async (req: Request, res: 
 
     const [[usersCount]] = (await connection.query('SELECT COUNT(*) as count FROM users')) as any;
     const [[vehiclesCount]] = (await connection.query('SELECT COUNT(*) as count FROM vehicles')) as any;
-    const [[queuesTodayCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_queues WHERE DATE(service_date) = CURDATE()')) as any;
-    const [[completedCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_history WHERE completed_at IS NOT NULL')) as any;
+    const [[queuesTodayCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_queues WHERE DATE(serviceDate) = CURDATE()')) as any;
+    const [[completedCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_history WHERE completedAt IS NOT NULL')) as any;
     const [[pendingCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_queues WHERE status = \'Menunggu\'')) as any;
     const [[processingCount]] = (await connection.query('SELECT COUNT(*) as count FROM service_queues WHERE status = \'Diproses\'')) as any;
 
     // Monthly data for the last 6 months
     const [queuesByMonthRows] = (await connection.query(
-      `SELECT DATE_FORMAT(service_date, '%b %Y') as month, COUNT(*) as queues
+      `SELECT DATE_FORMAT(serviceDate, '%b %Y') as month, COUNT(*) as queues
        FROM service_queues
-       WHERE service_date >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
-       GROUP BY YEAR(service_date), MONTH(service_date)
-       ORDER BY YEAR(service_date), MONTH(service_date)`
+       WHERE serviceDate >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
+       GROUP BY YEAR(serviceDate), MONTH(serviceDate)
+       ORDER BY YEAR(serviceDate), MONTH(serviceDate)`
     )) as any;
 
     const [completedByMonthRows] = (await connection.query(
-      `SELECT DATE_FORMAT(completed_at, '%b %Y') as month, COUNT(*) as completed
+      `SELECT DATE_FORMAT(completedAt, '%b %Y') as month, COUNT(*) as completed
        FROM service_history
-       WHERE completed_at >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
-       GROUP BY YEAR(completed_at), MONTH(completed_at)
-       ORDER BY YEAR(completed_at), MONTH(completed_at)`
+       WHERE completedAt >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
+       GROUP BY YEAR(completedAt), MONTH(completedAt)
+       ORDER BY YEAR(completedAt), MONTH(completedAt)`
     )) as any;
 
     connection.release();
@@ -71,8 +79,9 @@ router.get('/stats', authMiddleware, adminMiddleware, async (req: Request, res: 
 router.get('/users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
     const connection = await pool.getConnection();
+    await ensureUserProfileColumns(connection);
     const [users] = await connection.query(
-      'SELECT id, name, email, role, address, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, name, email, role, phone, address, createdAt AS created_at FROM users ORDER BY createdAt DESC'
     );
     connection.release();
     res.json({ success: true, data: users });
@@ -87,10 +96,10 @@ router.get('/vehicles', authMiddleware, adminMiddleware, async (req: Request, re
   try {
     const connection = await pool.getConnection();
     const [vehicles] = await connection.query(
-      `SELECT v.id, v.user_id, v.merk, v.tipe, v.tahun, v.plat_nomor, v.created_at, u.name as user_name
+      `SELECT v.id, v.userId AS user_id, v.merk, v.tipe, v.tahun, v.platNomor AS plat_nomor, v.createdAt AS created_at, u.name as user_name
        FROM vehicles v
-       LEFT JOIN users u ON v.user_id = u.id
-       ORDER BY v.created_at DESC`
+       LEFT JOIN users u ON v.userId = u.id
+       ORDER BY v.createdAt DESC`
     );
     connection.release();
     res.json({ success: true, data: vehicles });

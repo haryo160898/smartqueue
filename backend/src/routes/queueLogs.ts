@@ -15,19 +15,19 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
 
     const connection = await pool.getConnection();
     let query = `
-      SELECT ql.*, sq.queue_number, sq.user_id, u.name AS changed_by_name
+      SELECT ql.id, ql.queueId AS queue_id, ql.oldStatus AS old_status, ql.newStatus AS new_status, ql.changedBy AS changed_by, ql.changedAt AS changed_at, sq.queueNumber AS queue_number, sq.userId AS user_id, u.name AS changed_by_name
       FROM queue_logs ql
-      JOIN service_queues sq ON ql.queue_id = sq.id
-      LEFT JOIN users u ON ql.changed_by = u.id
+      JOIN service_queues sq ON ql.queueId = sq.id
+      LEFT JOIN users u ON ql.changedBy = u.id
     `;
     const params: any[] = [];
 
     if (authReq.user.role !== 'admin') {
-      query += ' WHERE sq.user_id = ?';
+      query += ' WHERE sq.userId = ?';
       params.push(authReq.user.id);
     }
 
-    query += ' ORDER BY ql.changed_at DESC';
+    query += ' ORDER BY ql.changedAt DESC';
 
     const [logs] = await connection.query(query, params);
     connection.release();
@@ -49,7 +49,7 @@ router.get('/queue/:queueId', authMiddleware, async (req: Request, res: Response
 
     const queueId = parseInt(req.params.queueId, 10);
     const connection = await pool.getConnection();
-    const [queues] = await connection.query('SELECT user_id FROM service_queues WHERE id = ?', [queueId]);
+    const [queues] = await connection.query('SELECT userId AS user_id FROM service_queues WHERE id = ?', [queueId]);
 
     if ((queues as any[]).length === 0) {
       connection.release();
@@ -63,7 +63,7 @@ router.get('/queue/:queueId', authMiddleware, async (req: Request, res: Response
     }
 
     const [logs] = await connection.query(
-      'SELECT ql.*, u.name AS changed_by_name FROM queue_logs ql LEFT JOIN users u ON ql.changed_by = u.id WHERE ql.queue_id = ? ORDER BY ql.changed_at DESC',
+      'SELECT ql.id, ql.queueId AS queue_id, ql.oldStatus AS old_status, ql.newStatus AS new_status, ql.changedBy AS changed_by, ql.changedAt AS changed_at, u.name AS changed_by_name FROM queue_logs ql LEFT JOIN users u ON ql.changedBy = u.id WHERE ql.queueId = ? ORDER BY ql.changedAt DESC',
       [queueId]
     );
 

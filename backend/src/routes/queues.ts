@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import pool from '../config/database';
 import { authMiddleware, adminMiddleware } from '../middleware/auth';
 import { AuthenticatedRequest, CreateQueueRequest, UpdateQueueStatusRequest } from '../types';
+import { createNotification, createNotificationForAdmins } from '../utils/notifications';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ const router = Router();
 const generateQueueNumber = async (): Promise<string> => {
   const connection = await pool.getConnection();
   const [result] = await connection.query(
-    'SELECT COUNT(*) as count FROM service_queues WHERE DATE(created_at) = CURDATE()'
+    'SELECT COUNT(*) as count FROM service_queues WHERE DATE(createdAt) = CURDATE()'
   );
   connection.release();
 
@@ -34,20 +35,20 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
 
     const connection = await pool.getConnection();
     let query = `
-      SELECT sq.*, v.merk, v.tipe, v.tahun, v.plat_nomor, u.name as user_name
+      SELECT sq.id, sq.queueNumber AS queue_number, sq.userId AS user_id, sq.vehicleId AS vehicle_id, sq.complaint, sq.serviceDate AS service_date, sq.status, sq.createdAt AS created_at, sq.updatedAt AS updated_at, v.merk, v.tipe, v.tahun, v.platNomor AS plat_nomor, u.name as user_name
       FROM service_queues sq
-      LEFT JOIN vehicles v ON sq.vehicle_id = v.id
-      LEFT JOIN users u ON sq.user_id = u.id
+      LEFT JOIN vehicles v ON sq.vehicleId = v.id
+      LEFT JOIN users u ON sq.userId = u.id
     `;
     let params: any[] = [];
 
     // Only show own queues if not admin
     if (authReq.user!.role !== 'admin') {
-      query += ' WHERE sq.user_id = ?';
+      query += ' WHERE sq.userId = ?';
       params = [authReq.user!.id];
     }
 
-    query += ' ORDER BY sq.created_at DESC';
+    query += ' ORDER BY sq.createdAt DESC';
 
     const [queues] = await connection.query(query, params);
     connection.release();
@@ -84,9 +85,9 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
 
     const connection = await pool.getConnection();
     const [queues] = await connection.query(
-      `SELECT sq.*, v.merk, v.tipe, v.tahun, v.plat_nomor
+      `SELECT sq.id, sq.queueNumber AS queue_number, sq.userId AS user_id, sq.vehicleId AS vehicle_id, sq.complaint, sq.serviceDate AS service_date, sq.status, sq.createdAt AS created_at, sq.updatedAt AS updated_at, v.merk, v.tipe, v.tahun, v.platNomor AS plat_nomor
        FROM service_queues sq
-       LEFT JOIN vehicles v ON sq.vehicle_id = v.id
+       LEFT JOIN vehicles v ON sq.vehicleId = v.id
        WHERE sq.id = ?`,
       [queueId]
     );
@@ -156,7 +157,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
     // Check vehicle ownership
     const [vehicles] = await connection.query(
-      'SELECT user_id FROM vehicles WHERE id = ?',
+      'SELECT userId AS user_id FROM vehicles WHERE id = ?',
       [vehicle_id]
     );
 
@@ -181,8 +182,22 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     const queueNumber = await generateQueueNumber();
 
     const [result] = await connection.query(
-      'INSERT INTO service_queues (queue_number, user_id, vehicle_id, complaint, service_date, status) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO service_queues (queueNumber, userId, vehicleId, complaint, serviceDate, status) VALUES (?, ?, ?, ?, ?, ?)',
       [queueNumber, authReq.user!.id, vehicle_id, complaint, service_date, 'Menunggu']
+    );
+
+    await createNotification(
+      connection,
+      authReq.user!.id,
+      'Antrian berhasil dibuat',
+      `Antrian ${queueNumber} berhasil dibuat untuk tanggal ${service_date}.`,
+      'success'
+    );
+    await createNotificationForAdmins(
+      connection,
+      'Antrian baru masuk',
+      `Antrian ${queueNumber} dibuat oleh pengguna.`,
+      'info'
     );
 
     connection.release();
@@ -243,7 +258,7 @@ router.put(
 
       // Get old status
       const [queues] = await connection.query(
-        'SELECT status FROM service_queues WHERE id = ?',
+        'SELECT status, userId AS user_id, queueNumber AS queue_number FROM service_queues WHERE id = ?',
         [queueId]
       );
 
@@ -256,7 +271,8 @@ router.put(
         });
       }
 
-      const oldStatus = (queues as any[])[0].status;
+      const queue = (queues as any[])[0];
+      const oldStatus = queue.status;
 
       // Update queue status
       await connection.query('UPDATE service_queues SET status = ? WHERE id = ?', [
@@ -264,17 +280,52 @@ router.put(
         queueId,
       ]);
 
+      // Notify queue owner about the status change
+      const statusTitle =
+        status === 'Selesai'
+          ? 'Antrian selesai'
+          : status === 'Diproses'
+          ? 'Antrian diproses'
+          : status === 'Dibatalkan'
+          ? 'Antrian dibatalkan'
+          : 'Status antrian diperbarui';
+      const statusMessage =
+        status === 'Selesai'
+          ? `Antrian ${queue.queue_number} telah selesai.`
+          : status === 'Diproses'
+          ? `Antrian ${queue.queue_number} sedang diproses.`
+          : status === 'Dibatalkan'
+          ? `Antrian ${queue.queue_number} dibatalkan.`
+          : `Status antrian ${queue.queue_number} diperbarui menjadi ${status}.`;
+
+      await createNotification(
+        connection,
+        queue.user_id,
+        statusTitle,
+        statusMessage,
+        status === 'Selesai' ? 'success' : status === 'Dibatalkan' ? 'warning' : 'info'
+      );
+
       // If service has been completed, insert a service history record
       if (status === 'Selesai' && oldStatus !== 'Selesai') {
-        await connection.query(
-          'INSERT INTO service_history (queue_id, service_notes, completed_at) VALUES (?, ?, NOW())',
-          [queueId, null]
+        const [columns] = await connection.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_history' AND column_name IN ('serviceNotes','service_notes') ORDER BY FIELD(column_name, 'serviceNotes', 'service_notes') LIMIT 1"
         );
+        const serviceNotesColumn = (columns as any[]).length > 0 ? (columns as any[])[0].column_name : null;
+
+        if (serviceNotesColumn) {
+          await connection.query(
+            `INSERT INTO service_history (queueId, \`${serviceNotesColumn}\`, completedAt) VALUES (?, ?, NOW())`,
+            [queueId, null]
+          );
+        } else {
+          await connection.query('INSERT INTO service_history (queueId, completedAt) VALUES (?, NOW())', [queueId]);
+        }
       }
 
       // Log the change
       await connection.query(
-        'INSERT INTO queue_logs (queue_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)',
+        'INSERT INTO queue_logs (queueId, oldStatus, newStatus, changedBy) VALUES (?, ?, ?, ?)',
         [queueId, oldStatus, status, authReq.user!.id]
       );
 
@@ -318,7 +369,7 @@ router.put('/:id/cancel', authMiddleware, async (req: Request, res: Response) =>
     const connection = await pool.getConnection();
 
     const [queues] = await connection.query(
-      'SELECT user_id, status FROM service_queues WHERE id = ?',
+      'SELECT userId AS user_id, status, queueNumber AS queue_number FROM service_queues WHERE id = ?',
       [queueId]
     );
 
@@ -351,9 +402,28 @@ router.put('/:id/cancel', authMiddleware, async (req: Request, res: Response) =>
     ]);
 
     await connection.query(
-      'INSERT INTO queue_logs (queue_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)',
+      'INSERT INTO queue_logs (queueId, oldStatus, newStatus, changedBy) VALUES (?, ?, ?, ?)',
       [queueId, oldStatus, 'Dibatalkan', authReq.user!.id]
     );
+
+    await createNotification(
+      connection,
+      queue.user_id,
+      'Antrian dibatalkan',
+      authReq.user!.role === 'admin'
+        ? `Antrian ${queue.queue_number || queueId} dibatalkan oleh admin.`
+        : `Antrian ${queue.queue_number || queueId} dibatalkan.`,
+      'warning'
+    );
+
+    if (authReq.user!.role !== 'admin') {
+      await createNotificationForAdmins(
+        connection,
+        'Antrian dibatalkan oleh pengguna',
+        `Pengguna membatalkan antrian ${queue.queue_number || queueId}.`,
+        'warning'
+      );
+    }
 
     connection.release();
 

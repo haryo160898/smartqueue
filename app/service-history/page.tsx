@@ -4,10 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ServiceHistory, User } from '@/lib/types';
-import { getAuthToken, getStoredSession } from '@/lib/auth';
+import { getStoredSession } from '@/lib/auth';
+import { apiClient } from '@/lib/api-client';
 import { DashboardLayout } from '@/components/dashboard-layout';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 
 export default function ServiceHistoryPage() {
   const router = useRouter();
@@ -33,29 +32,11 @@ export default function ServiceHistoryPage() {
 
     const fetchHistory = async () => {
       try {
-        const token = getAuthToken();
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        const response = await fetch(`${API_BASE_URL}/api/service-history`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Gagal memuat riwayat service');
-        }
-
-        const result = await response.json();
+        const result = await apiClient.get('/service-history');
         setHistory(
           (result.data || []).map((item: any) => ({
             id: String(item.id),
             queue_id: String(item.queue_id),
-            service_notes: item.service_notes || '',
             completed_at: item.completed_at ? new Date(item.completed_at) : null,
             queue_number: item.queue_number || '',
             user_name: item.user_name || '',
@@ -108,9 +89,6 @@ export default function ServiceHistoryPage() {
                     <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">
                       Tanggal Selesai
                     </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">
-                      Catatan Service
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -132,9 +110,6 @@ export default function ServiceHistoryPage() {
                         {item.completed_at
                           ? new Date(item.completed_at).toLocaleDateString('id-ID')
                           : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-foreground/60">
-                        {item.service_notes || '-'}
                       </td>
                     </tr>
                   ))}

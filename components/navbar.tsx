@@ -1,11 +1,12 @@
 'use client';
 
 import { Bell, Settings, LogOut, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ThemeToggle } from './theme-toggle';
+import { apiClient } from '@/lib/api-client';
 
 interface NavbarProps {
   userName: string;
@@ -15,6 +16,33 @@ interface NavbarProps {
 export function Navbar({ userName, userRole }: NavbarProps) {
   const router = useRouter();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await apiClient.get('/notifications/count');
+        if (res?.success) {
+          setUnreadCount(res.data?.count || 0);
+        }
+      } catch (error) {
+        console.error('Fetch unread notification count error:', error);
+      }
+    };
+
+    const handleNotificationCountUpdate = () => {
+      fetchUnreadCount();
+    };
+
+    fetchUnreadCount();
+    window.addEventListener('notificationCountUpdated', handleNotificationCountUpdate);
+    const interval = window.setInterval(fetchUnreadCount, 10000);
+
+    return () => {
+      window.removeEventListener('notificationCountUpdated', handleNotificationCountUpdate);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -39,7 +67,11 @@ export function Navbar({ userName, userRole }: NavbarProps) {
             className="relative p-2 text-foreground/60 hover:bg-muted rounded-lg transition-colors"
           >
             <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 bg-destructive rounded-full"></span>
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </Link>
 
           {/* Settings */}

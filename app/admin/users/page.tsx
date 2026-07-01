@@ -33,8 +33,6 @@ export default function AdminUsersPage() {
             name: u.name,
             email: u.email,
             role: u.role,
-            phone: u.phone || '',
-            address: u.address || '',
             created_at: new Date(u.created_at),
           }));
           setUsers(mapped);
@@ -63,8 +61,7 @@ export default function AdminUsersPage() {
     (u) =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.address || '').toLowerCase().includes(searchTerm.toLowerCase())
+      u.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!adminUser) {
@@ -103,12 +100,6 @@ export default function AdminUsersPage() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">
-                  Telepon
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">
-                  Alamat
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">
                   Tanggal Bergabung
                 </th>
               </tr>
@@ -116,7 +107,7 @@ export default function AdminUsersPage() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
                     Tidak ada user ditemukan
                   </td>
                 </tr>
@@ -132,12 +123,6 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 text-sm text-muted-foreground">{user.email}</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground capitalize">
                       {user.role}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {user.phone || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate">
-                      {user.address || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
                       {user.created_at.toLocaleDateString('id-ID')}

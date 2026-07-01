@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { Bell, Lock, Eye, EyeOff, LogOut, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { User } from '@/lib/types';
+import { apiClient } from '@/lib/api-client';
+import { clearUserSession, getStoredSession } from '@/lib/auth';
 
 const notificationSchema = z.object({
   emailNotifications: z.boolean(),
@@ -51,6 +53,7 @@ export default function SettingsPage() {
     register: registerNotifications,
     watch: watchNotifications,
     handleSubmit: handleNotificationsSubmit,
+    reset: resetNotificationSettings,
   } = useForm<NotificationSettings>({
     resolver: zodResolver(notificationSchema),
     defaultValues: {
@@ -74,26 +77,50 @@ export default function SettingsPage() {
   const notificationSettings = watchNotifications();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    const storedSession = getStoredSession();
+    if (!storedSession) {
       router.push('/login');
       return;
     }
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
+    setUser(storedSession.user);
 
-    const savedSettings = localStorage.getItem('appSettings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-  }, [router]);
+    const fetchSettings = async () => {
+      try {
+        const res = await apiClient.get('/user/settings');
+        if (!res.success) {
+          toast.error(res.message || 'Gagal memuat pengaturan');
+          return;
+        }
+
+        setSettings(res.data);
+        resetNotificationSettings({
+          emailNotifications: Boolean(res.data.emailNotifications),
+          smsNotifications: Boolean(res.data.smsNotifications),
+          queueUpdates: Boolean(res.data.queueUpdates),
+          maintenanceReminders: Boolean(res.data.maintenanceReminders),
+          systemUpdates: Boolean(res.data.systemUpdates),
+        });
+      } catch (error) {
+        console.error('Fetch settings error:', error);
+        toast.error('Gagal memuat pengaturan');
+      }
+    };
+
+    fetchSettings();
+  }, [router, resetNotificationSettings]);
 
   const onNotificationsSubmit = async (data: NotificationSettings) => {
     try {
-      localStorage.setItem('appSettings', JSON.stringify(data));
-      setSettings(data);
+      const res = await apiClient.put('/user/settings', data);
+      if (!res.success) {
+        toast.error(res.message || 'Gagal memperbarui pengaturan');
+        return;
+      }
+
+      setSettings(res.data);
       toast.success('Pengaturan notifikasi berhasil diperbarui');
     } catch (error) {
+      console.error('Update settings error:', error);
       toast.error('Gagal memperbarui pengaturan');
     }
   };
@@ -110,16 +137,14 @@ export default function SettingsPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
+    clearUserSession();
     toast.success('Berhasil logout');
     router.push('/login');
   };
 
   const handleDeleteAccount = () => {
     if (confirm('Apakah Anda yakin ingin menghapus akun? Tindakan ini tidak dapat dibatalkan.')) {
-      localStorage.removeItem('user');
-      localStorage.removeItem('appSettings');
-      localStorage.removeItem('notifications');
+      clearUserSession();
       toast.success('Akun berhasil dihapus');
       router.push('/login');
     }

@@ -6,14 +6,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import { Eye, EyeOff, User as UserIcon, Mail, Shield } from 'lucide-react';
+import { Eye, EyeOff, User as UserIcon, Shield } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { getStoredSession, updateStoredSessionUser } from '@/lib/auth';
 import { User } from '@/lib/types';
 import { DashboardLayout } from '@/components/dashboard-layout';
 
 const profileSchema = z.object({
   name: z.string().min(3, 'Nama minimal 3 karakter'),
   email: z.string().email('Email tidak valid'),
-  phone: z.string().optional(),
 });
 
 const passwordSchema = z
@@ -57,43 +58,74 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    const storedSession = getStoredSession();
+    if (!storedSession) {
       router.push('/login');
       return;
     }
-    const parsedUser = JSON.parse(userData);
-    // Ensure user object matches `User` type (created_at/updated_at)
-    const normalized = {
-      ...parsedUser,
-      id: String(parsedUser.id),
-      created_at: parsedUser.created_at ? new Date(parsedUser.created_at) : parsedUser.createdAt ? new Date(parsedUser.createdAt) : new Date(),
-      updated_at: parsedUser.updated_at ? new Date(parsedUser.updated_at) : parsedUser.updatedAt ? new Date(parsedUser.updatedAt) : undefined,
-    } as any;
-    setUser(normalized);
-    resetProfile({
-      name: parsedUser.name,
-      email: parsedUser.email,
-      phone: parsedUser.phone || '',
-    });
+
+    const fetchProfile = async () => {
+      try {
+        const res = await apiClient.get('/user/profile');
+        if (!res.success) {
+          toast.error(res.message || 'Gagal mengambil profil');
+          router.push('/login');
+          return;
+        }
+
+        const profile = res.data;
+        const normalized = {
+          ...profile,
+          id: String(profile.id),
+          created_at: profile.created_at ? new Date(profile.created_at) : new Date(),
+          updated_at: profile.updated_at ? new Date(profile.updated_at) : undefined,
+        } as User;
+
+        setUser(normalized);
+        resetProfile({
+          name: profile.name,
+          email: profile.email,
+        });
+      } catch (error) {
+        console.error('Fetch profile error:', error);
+        toast.error('Gagal mengambil profil. Silakan login kembali.');
+        router.push('/login');
+      }
+    };
+
+    fetchProfile();
   }, [router, resetProfile]);
 
   const onProfileSubmit = async (data: ProfileFormData) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
       if (!user) return;
+
+      const res = await apiClient.put('/user/profile', data);
+      if (!res.success) {
+        toast.error(res.message || 'Gagal memperbarui profil');
+        return;
+      }
+
+      const profile = res.data;
       const updatedUser = {
         ...user,
-        ...data,
-        updated_at: new Date(),
-      } as any;
+        ...profile,
+        id: String(profile.id),
+        created_at: profile.created_at ? new Date(profile.created_at) : user.created_at,
+        updated_at: profile.updated_at ? new Date(profile.updated_at) : user.updated_at,
+      } as User;
 
-      localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
+      updateStoredSessionUser({
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      });
 
       toast.success('Profil berhasil diperbarui');
     } catch (error) {
+      console.error('Update profile error:', error);
       toast.error('Gagal memperbarui profil');
     }
   };
@@ -185,18 +217,6 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Nomor Telepon (Opsional)
-              </label>
-              <input
-                type="tel"
-                {...registerProfile('phone')}
-                className="input-field"
-                placeholder="Masukkan nomor telepon"
-              />
-            </div>
 
             {/* Role (Read-only) */}
             <div>

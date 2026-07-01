@@ -12,22 +12,26 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'HASUNO WORKSHOP - Smart Queue',
-  description: 'HASUNO WORKSHOP Smart Queue - Sistem manajemen antrian service bengkel yang modern, efisien, dan user-friendly',
+  title: 'BENGKEL RAKA - SMART QUEUE',
+  description:
+    'BENGKEL RAKA Smart Queue adalah solusi manajemen antrian service bengkel modern yang efisien, profesional, dan mudah digunakan.',
   generator: 'v0.app',
   icons: {
     icon: [
       {
-        url: '/logo.png',
-        sizes: '192x192',
-        type: 'image/png',
+        url: '/icon-light-32x32.png',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/icon-dark-32x32.png',
+        media: '(prefers-color-scheme: dark)',
       },
       {
         url: '/icon.svg',
         type: 'image/svg+xml',
       },
     ],
-    apple: '/logo.png',
+    apple: '/apple-icon.png',
   },
 }
 

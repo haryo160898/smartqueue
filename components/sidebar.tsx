@@ -4,32 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import {
-  LayoutDashboard,
-  Car,
-  Plus,
-  History,
-  User,
-  Users,
-  ListTodo,
-  Logs,
-  Menu,
-  X,
-  Settings,
-} from 'lucide-react';
 import { NAVIGATION_ITEMS_ADMIN, NAVIGATION_ITEMS_USER } from '@/lib/constants';
-
-const ICON_MAP: Record<string, React.ReactNode> = {
-  LayoutDashboard: <LayoutDashboard className="h-5 w-5" />,
-  Car: <Car className="h-5 w-5" />,
-  Plus: <Plus className="h-5 w-5" />,
-  History: <History className="h-5 w-5" />,
-  User: <User className="h-5 w-5" />,
-  Users: <Users className="h-5 w-5" />,
-  ListTodo: <ListTodo className="h-5 w-5" />,
-  Logs: <Logs className="h-5 w-5" />,
-  Settings: <Settings className="h-5 w-5" />,
-};
 
 interface SidebarProps {
   role: 'admin' | 'user';
@@ -46,9 +21,9 @@ export function Sidebar({ role, userName }: SidebarProps) {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-40 rounded-lg bg-primary p-2 text-primary-foreground md:hidden"
+        className="fixed top-4 left-4 z-40 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground md:hidden"
       >
-        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {isOpen ? 'Tutup' : 'Menu'}
       </button>
 
       {/* Sidebar */}
@@ -58,18 +33,17 @@ export function Sidebar({ role, userName }: SidebarProps) {
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
           <div className="border-b border-sidebar-border p-6">
             <div className="flex items-center gap-3">
               <Image
-                src="/logo.png"
-                alt="HASUNO WORKSHOP"
-                width={40}
-                height={40}
-                className="h-10 w-10 rounded-full object-contain"
+                src="/brand-logo.png"
+                alt="Bengkel Raka Smart Queue"
+                width={64}
+                height={64}
+                className="h-16 w-16 rounded-2xl object-contain"
               />
               <div>
-                <h1 className="text-xl font-bold">HASUNO</h1>
+                <h1 className="text-xl font-bold">BENGKEL RAKA</h1>
                 <p className="mt-0.5 text-xs text-sidebar-foreground/60">Smart Queue</p>
               </div>
             </div>
@@ -99,7 +73,6 @@ export function Sidebar({ role, userName }: SidebarProps) {
                       : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
                   }`}
                 >
-                  {ICON_MAP[item.icon as keyof typeof ICON_MAP]}
                   <span>{item.label}</span>
                 </Link>
               );
@@ -112,8 +85,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
               href="/login"
               className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent transition-colors"
             >
-              <span>🚪</span>
-              <span>Logout</span>
+              <span>Keluar</span>
             </Link>
           </div>
         </div>

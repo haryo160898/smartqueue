@@ -15,6 +15,7 @@ import {
   ResetPasswordRequest,
 } from '../types';
 import { authMiddleware } from '../middleware/auth';
+import { createResetPasswordEmail } from '../utils/emailTemplates';
 
 const router = Router();
 
@@ -32,31 +33,34 @@ const ensurePasswordResetTable = async (connection: any) => {
   await connection.query(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id int(11) NOT NULL AUTO_INCREMENT,
-      user_id int(11) NOT NULL,
-      token varchar(128) NOT NULL,
-      expires_at datetime NOT NULL,
-      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      userId int(11) NOT NULL,
+      token varchar(191) NOT NULL,
+      expiresAt datetime(3) NOT NULL,
+      createdAt datetime(3) NOT NULL DEFAULT current_timestamp(3),
       PRIMARY KEY (id),
       UNIQUE KEY token (token),
-      KEY user_id (user_id),
-      CONSTRAINT password_reset_tokens_ibfk_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+      KEY userId (userId),
+      CONSTRAINT password_reset_tokens_ibfk_1 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 };
 
-const sendResetEmail = async (email: string, token: string) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+const sendResetEmail = async (email: string, token: string, userName: string) => {
+  const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000';
+  const resetUrl = `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${token}`;
+  const expiresAt = 'Link hanya berlaku selama masa aktif token';
+  const { subject, text, html } = createResetPasswordEmail({
+    userName,
+    resetLink: resetUrl,
+    expiredTime: expiresAt,
+  });
 
   return transporter.sendMail({
     from: process.env.MAIL_FROM,
     to: email,
-    subject: 'Reset Password Smart Queue',
-    text: `Silakan klik tautan berikut untuk mereset password Anda:\n\n${resetUrl}\n\nJika Anda tidak meminta reset password, abaikan email ini.`,
-    html: `
-      <p>Silakan klik tautan berikut untuk mereset password Anda:</p>
-      <p><a href="${resetUrl}">${resetUrl}</a></p>
-      <p>Jika Anda tidak meminta reset password, abaikan email ini.</p>
-    `,
+    subject,
+    text,
+    html,
   });
 };
 
@@ -239,13 +243,13 @@ router.post('/forgot-password', async (req: any, res: Response) => {
     const user = (users as any[])[0];
     const token = crypto.randomBytes(24).toString('hex');
 
-    await connection.query('DELETE FROM password_reset_tokens WHERE user_id = ?', [user.id]);
+    await connection.query('DELETE FROM password_reset_tokens WHERE userId = ?', [user.id]);
     await connection.query(
-      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR))',
+      'INSERT INTO password_reset_tokens (userId, token, expiresAt) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR))',
       [user.id, token]
     );
 
-    await sendResetEmail(email, token);
+    await sendResetEmail(email, token, user.name || 'Pengguna');
     connection.release();
 
     res.json({
@@ -296,7 +300,7 @@ router.post('/reset-password', async (req: any, res: Response) => {
     await ensurePasswordResetTable(connection);
 
     const [tokens] = await connection.query(
-      'SELECT user_id FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
+      'SELECT userId FROM password_reset_tokens WHERE token = ? AND expiresAt > NOW()',
       [token]
     );
 
@@ -309,11 +313,11 @@ router.post('/reset-password', async (req: any, res: Response) => {
       });
     }
 
-    const userId = (tokens as any[])[0].user_id;
+    const userId = (tokens as any[])[0].userId;
     const hashedPassword = await bcryptjs.hash(password, 10);
 
     await connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
-    await connection.query('DELETE FROM password_reset_tokens WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM password_reset_tokens WHERE userId = ?', [userId]);
     connection.release();
 
     res.json({
@@ -337,7 +341,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
     const authReq = req as AuthenticatedRequest;
     const connection = await pool.getConnection();
     const [users] = await connection.query(
-      'SELECT id, name, email, role, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, createdAt AS created_at FROM users WHERE id = ?',
       [authReq.user!.id]
     );
     connection.release();

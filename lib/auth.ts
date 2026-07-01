@@ -49,6 +49,19 @@ export function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+export function updateStoredSessionUser(user: SessionUser) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const expiryText = localStorage.getItem(EXPIRY_KEY);
+  if (!expiryText) {
+    return;
+  }
+
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearUserSession() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);

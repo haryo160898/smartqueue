@@ -21,8 +21,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
 
     const connection = await pool.getConnection();
     const [vehicles] = await connection.query(
-      `SELECT id, user_id, merk, tipe, tahun, plat_nomor, created_at
-       FROM vehicles WHERE user_id = ? ORDER BY created_at DESC`,
+      `SELECT id, userId AS user_id, merk, tipe, tahun, platNomor AS plat_nomor, createdAt AS created_at, updatedAt AS updated_at
+       FROM vehicles WHERE userId = ? ORDER BY createdAt DESC`,
       [authReq.user!.id]
     );
     connection.release();
@@ -69,7 +69,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
     // Check if plat_nomor already exists
     const [existing] = await connection.query(
-      'SELECT id FROM vehicles WHERE plat_nomor = ?',
+      'SELECT id FROM vehicles WHERE platNomor = ?',
       [plat_nomor]
     );
 
@@ -83,7 +83,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     }
 
     const [result] = await connection.query(
-      'INSERT INTO vehicles (user_id, merk, tipe, tahun, plat_nomor) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO vehicles (userId, merk, tipe, tahun, platNomor) VALUES (?, ?, ?, ?, ?)',
       [authReq.user!.id, merk, tipe, tahun, plat_nomor]
     );
 
@@ -139,7 +139,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
 
     // Check ownership
     const [vehicles] = await connection.query(
-      'SELECT user_id FROM vehicles WHERE id = ?',
+      'SELECT userId AS user_id FROM vehicles WHERE id = ?',
       [vehicleId]
     );
 
@@ -162,7 +162,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
     }
 
     await connection.query(
-      'UPDATE vehicles SET merk = ?, tipe = ?, tahun = ?, plat_nomor = ? WHERE id = ?',
+      'UPDATE vehicles SET merk = ?, tipe = ?, tahun = ?, platNomor = ? WHERE id = ?',
       [merk, tipe, tahun, plat_nomor, vehicleId]
     );
 
@@ -209,7 +209,7 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
 
     // Check ownership
     const [vehicles] = await connection.query(
-      'SELECT user_id FROM vehicles WHERE id = ?',
+      'SELECT userId AS user_id FROM vehicles WHERE id = ?',
       [vehicleId]
     );
 

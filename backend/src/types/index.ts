@@ -94,6 +94,30 @@ export interface CreateServiceHistoryRequest {
   service_notes?: string;
 }
 
+export interface UpdateUserProfileRequest {
+  name: string;
+  email: string;
+}
+
+export interface UpdateUserSettingsRequest {
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  queueUpdates: boolean;
+  maintenanceReminders: boolean;
+  systemUpdates: boolean;
+}
+
+export interface Notification {
+  id: number;
+  userId: number;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -108,6 +132,6 @@ export interface JWTPayload {
   role: string;
 }
 
-export interface AuthenticatedRequest extends Express.Request {
+export interface AuthenticatedRequest extends Request {
   user?: JWTPayload;
 }

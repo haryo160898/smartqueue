@@ -10,7 +10,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'smart_queue',
-  port: parseInt(process.env.DB_PORT || '3306'),
+  port: parseInt(process.env.DB_PORT || '3306', 10),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -19,15 +19,27 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
-// Test connection on startup
-pool.getConnection()
-  .then((connection) => {
-    console.log('✅ Database connection successful');
+let databaseReady = false;
+
+export const checkDatabaseConnection = async () => {
+  try {
+    const connection = await pool.getConnection();
     connection.release();
-  })
-  .catch((error) => {
-    console.error('❌ Database connection failed:', error);
-    process.exit(1);
-  });
+    databaseReady = true;
+    return true;
+  } catch (error) {
+    databaseReady = false;
+    console.error('⚠️ Database connection check failed:', error);
+    return false;
+  }
+};
+
+export const isDatabaseReady = () => databaseReady;
+
+pool.on('enqueue', () => {
+  databaseReady = false;
+});
+
+void checkDatabaseConnection();
 
 export default pool;

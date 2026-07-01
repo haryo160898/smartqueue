@@ -213,6 +213,17 @@ body {
   .input-field:focus {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
+
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear,
+  input[type="password"]::-webkit-credentials-auto-fill-button,
+  input[type="password"]::-webkit-textfield-decoration-container {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
   
   .card-base {
     @apply rounded-lg border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md;

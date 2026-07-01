@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Bell, Check, Trash2, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { apiClient } from '@/lib/api-client';
+import { getStoredSession } from '@/lib/auth';
 
 interface Notification {
   id: string;
@@ -21,66 +23,35 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
+    const storedSession = getStoredSession();
+    if (!storedSession) {
       router.push('/login');
       return;
     }
 
-    // Load notifications from localStorage
-    const savedNotifications = localStorage.getItem('notifications');
-    if (savedNotifications) {
-      setNotifications(JSON.parse(savedNotifications).map((n: any) => ({
-        ...n,
-        createdAt: new Date(n.createdAt),
-      })));
-    } else {
-      // Initialize with sample notifications
-      const sampleNotifications: Notification[] = [
-        {
-          id: '1',
-          title: 'Antrian Siap',
-          message: 'Kendaraan Anda siap untuk service',
-          type: 'success',
-          read: false,
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        },
-        {
-          id: '2',
-          title: 'Service Selesai',
-          message: 'Service untuk Toyota Avanza sudah selesai',
-          type: 'success',
-          read: false,
-          createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-        },
-        {
-          id: '3',
-          title: 'Pengingat Maintenance',
-          message: 'Saatnya melakukan maintenance berkala untuk kendaraan Anda',
-          type: 'warning',
-          read: true,
-          createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: '4',
-          title: 'Update Sistem',
-          message: 'Sistem telah diperbarui dengan fitur-fitur baru',
-          type: 'info',
-          read: true,
-          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: '5',
-          title: 'Antrian Dibatalkan',
-          message: 'Antrian Anda telah dibatalkan',
-          type: 'error',
-          read: true,
-          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        },
-      ];
-      setNotifications(sampleNotifications);
-      localStorage.setItem('notifications', JSON.stringify(sampleNotifications));
-    }
+    const fetchNotifications = async () => {
+      try {
+        const res = await apiClient.get('/notifications');
+        if (!res.success) {
+          toast.error(res.message || 'Gagal memuat notifikasi');
+          return;
+        }
+
+        setNotifications((res.data || []).map((notification: any) => ({
+          id: String(notification.id),
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          read: Boolean(notification.read),
+          createdAt: new Date(notification.created_at || notification.createdAt),
+        })));
+      } catch (error) {
+        console.error('Fetch notifications error:', error);
+        toast.error('Gagal memuat notifikasi');
+      }
+    };
+
+    fetchNotifications();
   }, [router]);
 
   const filteredNotifications = filter === 'unread' 
@@ -89,32 +60,74 @@ export default function NotificationsPage() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-    localStorage.setItem('notifications', JSON.stringify(
-      notifications.map(n => n.id === id ? { ...n, read: true } : n)
-    ));
-    toast.success('Notifikasi ditandai sebagai dibaca');
+  const markAsRead = async (id: string) => {
+    try {
+      const res = await apiClient.post(`/notifications/${id}/read`, {});
+      if (!res.success) {
+        toast.error(res.message || 'Gagal menandai notifikasi sebagai dibaca');
+        return;
+      }
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+      window.dispatchEvent(new CustomEvent('notificationCountUpdated'));
+      toast.success('Notifikasi ditandai sebagai dibaca');
+    } catch (error) {
+      console.error('Mark notification read error:', error);
+      toast.error('Gagal menandai notifikasi sebagai dibaca');
+    }
   };
 
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    toast.success('Semua notifikasi ditandai sebagai dibaca');
+  const markAllAsRead = async () => {
+    try {
+      const res = await apiClient.post('/notifications/read-all', {});
+      if (!res.success) {
+        toast.error(res.message || 'Gagal menandai semua notifikasi sebagai dibaca');
+        return;
+      }
+
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      window.dispatchEvent(new CustomEvent('notificationCountUpdated'));
+      toast.success('Semua notifikasi ditandai sebagai dibaca');
+    } catch (error) {
+      console.error('Mark all notifications read error:', error);
+      toast.error('Gagal menandai semua notifikasi sebagai dibaca');
+    }
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    toast.success('Notifikasi dihapus');
+  const deleteNotification = async (id: string) => {
+    try {
+      const res = await apiClient.delete(`/notifications/${id}`);
+      if (!res.success) {
+        toast.error(res.message || 'Gagal menghapus notifikasi');
+        return;
+      }
+
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      window.dispatchEvent(new CustomEvent('notificationCountUpdated'));
+      toast.success('Notifikasi dihapus');
+    } catch (error) {
+      console.error('Delete notification error:', error);
+      toast.error('Gagal menghapus notifikasi');
+    }
   };
 
-  const deleteAllNotifications = () => {
-    setNotifications([]);
-    localStorage.setItem('notifications', JSON.stringify([]));
-    toast.success('Semua notifikasi dihapus');
+  const deleteAllNotifications = async () => {
+    try {
+      const res = await apiClient.delete('/notifications');
+      if (!res.success) {
+        toast.error(res.message || 'Gagal menghapus semua notifikasi');
+        return;
+      }
+
+      setNotifications([]);
+      window.dispatchEvent(new CustomEvent('notificationCountUpdated'));
+      toast.success('Semua notifikasi dihapus');
+    } catch (error) {
+      console.error('Delete all notifications error:', error);
+      toast.error('Gagal menghapus semua notifikasi');
+    }
   };
 
   const getTypeStyles = (type: string) => {

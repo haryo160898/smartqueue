@@ -1,13 +1,13 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { Eye, EyeOff, ArrowLeft, Moon, Sun } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { AuthBrand } from '@/components/auth-brand';
 
 const resetPasswordSchema = z
   .object({
@@ -70,35 +70,13 @@ export default function ResetPasswordPage() {
       {/* Theme Toggle */}
       <button
         onClick={toggleTheme}
-        className="absolute top-6 right-6 relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
-        style={{
-          backgroundColor: isDark ? '#334155' : '#E2E8F0',
-        }}
+        className="absolute top-6 right-6 rounded-full border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm"
       >
-        <span
-          className="absolute h-7 w-7 rounded-full shadow-sm transition-transform duration-300 flex items-center justify-center"
-          style={{
-            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-            transform: isDark ? 'translateX(26px)' : 'translateX(2px)',
-          }}
-        >
-          {isDark ? (
-            <Moon className="h-4 w-4 text-blue-400" />
-          ) : (
-            <Sun className="h-4 w-4 text-yellow-500" />
-          )}
-        </span>
+        {isDark ? 'Tema Gelap' : 'Tema Terang'}
       </button>
 
       <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 h-20 w-20 sm:h-24 sm:w-24 rounded-3xl bg-muted p-3 shadow-sm">
-            <Image src="/logo.svg" alt="Hasuno Workshop Smart Queue" width={96} height={96} className="object-contain" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">Hasuno Workshop</h1>
-          <p className="mt-2 text-foreground/60">Smart Queue untuk bengkel Anda</p>
-        </div>
+        <AuthBrand />
 
         {/* Card */}
         <div className="rounded-2xl border border-border bg-card p-8 shadow-lg transition-all duration-300">
@@ -125,7 +103,8 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-foreground/70 hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                     >
                       {showPassword ? (
                         <EyeOff className="h-5 w-5" />
@@ -154,7 +133,8 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-foreground/70 hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      aria-label={showConfirmPassword ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'}
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="h-5 w-5" />
@@ -183,9 +163,8 @@ export default function ResetPasswordPage() {
               {/* Back to Login */}
               <Link
                 href="/login"
-                className="mt-6 flex items-center justify-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                className="mt-6 flex items-center justify-center text-sm font-medium text-primary hover:text-primary/80 transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" />
                 Kembali ke Login
               </Link>
             </>
